@@ -1,0 +1,189 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Customer {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  email     String?  @unique
+  phone     String?
+  address   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  kiosks    Kiosk[]
+  products  Product[]  // Productos personalizados del cliente
+
+  @@index([email])
+}
+
+model Kiosk {
+  id         String   @id @default(cuid())
+  name       String
+  address    String?
+  phone      String?
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  kioskProducts KioskProduct[]
+  sales         Sale[]
+  suppliers     Supplier[]
+  cashFlow      CashFlow[]
+
+  @@unique([customerId, name])
+  @@index([customerId])
+}
+
+// Tabla de relación: mapea productos a kioscos con inventario específico
+model KioskProduct {
+  id        String   @id @default(cuid())
+  kioskId   String
+  kiosk     Kiosk    @relation(fields: [kioskId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  
+  // Datos específicos del kiosco
+  stock     Int      @default(0)
+  minStock  Int      @default(0)
+  price     Float    // Precio puede variar por kiosco
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([kioskId, productId])
+  @@index([kioskId])
+  @@index([productId])
+}
+
+// Categorías globales
+model Category {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  products Product[]
+
+  @@index([name])
+}
+
+// Productos globales del catálogo + productos personalizados de clientes
+model Product {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  barcode     String?  @unique
+  sku         String?  @unique
+  
+  // Precio y costo base (puede variar por kiosco en KioskProduct)
+  basePrice   Float
+  baseCost    Float
+  
+  categoryId  String
+  category    Category @relation(fields: [categoryId], references: [id])
+  
+  // Para productos personalizados de clientes
+  isCustom    Boolean  @default(false)
+  customerId  String?
+  customer    Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  kioskProducts     KioskProduct[]
+  saleItems         SaleItem[]
+  supplierProducts  SupplierProduct[]
+
+  @@index([categoryId])
+  @@index([customerId])
+  @@index([isCustom])
+}
+
+model Sale {
+  id            String   @id @default(cuid())
+  date          DateTime @default(now())
+  total         Float
+  paymentMethod String   // 'cash' | 'card' | 'both'
+  kioskId       String
+  kiosk         Kiosk    @relation(fields: [kioskId], references: [id])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  items SaleItem[]
+
+  @@index([kioskId])
+  @@index([date])
+}
+
+model SaleItem {
+  id        String   @id @default(cuid())
+  quantity  Int
+  unitPrice Float
+  subtotal  Float
+  saleId    String
+  sale      Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product  @relation(fields: [productId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@index([saleId])
+  @@index([productId])
+}
+
+model Supplier {
+  id      String @id @default(cuid())
+  name    String
+  phone   String?
+  email   String?
+  address String?
+  kioskId String
+  kiosk   Kiosk  @relation(fields: [kioskId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  products SupplierProduct[]
+
+  @@index([kioskId])
+}
+
+model SupplierProduct {
+  id        String   @id @default(cuid())
+  cost      Float
+  leadDays  Int?     // Días de entrega
+  supplierId String
+  supplier  Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([supplierId, productId])
+  @@index([supplierId])
+  @@index([productId])
+}
+
+model CashFlow {
+  id          String   @id @default(cuid())
+  type        String   // 'income' | 'expense'
+  amount      Float
+  description String?
+  kioskId     String
+  kiosk       Kiosk    @relation(fields: [kioskId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([kioskId])
+  @@index([type])
+  @@index([createdAt])
+}
